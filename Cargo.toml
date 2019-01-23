@@ -5,7 +5,9 @@ authors = ["CodeSandwich <igor.zuk@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
+actix-net = "0.2.6"
 actix-web = "0.7"
+futures = "0.1"
 serde = "1.0.85"
 serde_derive = "1.0.85"
 serde_json = "1.0.36"
