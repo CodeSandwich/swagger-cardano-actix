@@ -1,15 +1,9 @@
-extern crate actix_net;
-extern crate actix_web;
-extern crate serde;
-#[macro_use] extern crate serde_derive;
-#[macro_use] extern crate serde_json;
-
-pub mod server;
-
-use crate::server::ServerHandler;
+use actix_server_service::ServerService;
 use actix_web::{App, FutureResponse, HttpResponse, Json, Query, Responder, State};
 use actix_web::error::Error as ActixError;
 use futures::{Async, Future, Poll};
+use serde_derive::{Deserialize};
+use serde_json::json;
 use std::io::{BufRead, stdin};
 use std::sync::{Arc, Mutex};
 
@@ -24,7 +18,7 @@ fn main() {
             .resource("/restart-node", |r| r.get().with(restart_node_v1))
             .resource("/counter", |r| r.get().with(counter_v1))
         );
-    let server_handler = ServerHandler::start_server("127.0.0.1:8088", handler).unwrap();
+    let server_handler = ServerService::start("127.0.0.1:8088", handler).unwrap();
     stdin()
         .lock()
         .lines()
