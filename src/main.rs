@@ -4,21 +4,27 @@ extern crate serde;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate serde_json;
 
-use actix_net::server::Server;
-use actix_web::{actix, server, App, FutureResponse, HttpResponse, Json, Query, Responder, State};
-use actix_web::actix::Addr;
+pub mod server;
+
+use crate::server::ServerHandler;
+use actix_web::{App, FutureResponse, HttpResponse, Json, Query, Responder, State};
 use actix_web::error::Error as ActixError;
-use actix_web::server::StopServer;
 use futures::{Async, Future, Poll};
 use std::io::{BufRead, stdin};
-use std::sync::{Arc, mpsc::sync_channel, Mutex};
-use std::thread;
+use std::sync::{Arc, Mutex};
 
 type CounterState = Arc<Mutex<u64>>;
 
 fn main() {
     let state = Arc::new(Mutex::new(0));
-    let server_handler = ServerHandler::start_server(state);
+    let handler = move || App::with_state(state.clone())
+        .prefix("api")
+        .scope("v1", |scope| scope
+            .resource("/next-update", |r| r.get().with(next_update_v1))
+            .resource("/restart-node", |r| r.get().with(restart_node_v1))
+            .resource("/counter", |r| r.get().with(counter_v1))
+        );
+    let server_handler = ServerHandler::start_server("127.0.0.1:8088", handler).unwrap();
     stdin()
         .lock()
         .lines()
@@ -26,43 +32,6 @@ fn main() {
         .filter(|line| line == "stop")
         .next();
     server_handler.stop();
-}
-
-struct ServerHandler {
-    addr: Addr<Server>,
-}
-
-impl ServerHandler {
-    fn start_server(state: CounterState) -> Self {
-        let (sender, receiver) = sync_channel::<Addr<Server>>(1);
-        thread::spawn(move || {
-            let system = actix::System::new("actix system");
-            let server_addr = server::new(move || App::with_state(state.clone())
-                .prefix("api")
-                .scope("v1", |scope| scope
-                    .resource("/next-update", |r| r.get().with(next_update_v1))
-                    .resource("/restart-node", |r| r.get().with(restart_node_v1))
-                    .resource("/counter", |r| r.get().with(counter_v1))
-                ))
-                .system_exit()
-                .bind("127.0.0.1:8088")
-                .unwrap()
-                .start();
-            sender.send(server_addr)
-                .unwrap();
-            system.run();
-        });
-        let addr = receiver.recv()
-            .unwrap();
-        ServerHandler { addr }
-    }
-
-    fn stop(self) {
-        self.addr.send(StopServer { graceful: true })
-            .wait()
-            .unwrap()
-            .unwrap();
-    }
 }
 
 fn next_update_v1(_: ()) -> impl Responder {
