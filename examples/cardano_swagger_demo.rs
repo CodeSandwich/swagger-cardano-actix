@@ -2,6 +2,7 @@ use actix_server_service::ServerService;
 use actix_web::{App, FutureResponse, HttpResponse, Json, Query, Responder, State};
 use actix_web::error::Error as ActixError;
 use futures::{Async, Future, Poll};
+use native_tls::{Identity, TlsAcceptor};
 use serde_derive::{Deserialize};
 use serde_json::json;
 use std::io::{BufRead, stdin};
@@ -11,6 +12,7 @@ type CounterState = Arc<Mutex<u64>>;
 
 fn main() {
     let state = Arc::new(Mutex::new(0));
+    let tls = load_tls_acceptor();
     let handler = move || App::with_state(state.clone())
         .prefix("api")
         .scope("v1", |scope| scope
@@ -18,7 +20,9 @@ fn main() {
             .resource("/restart-node", |r| r.get().with(restart_node_v1))
             .resource("/counter", |r| r.get().with(counter_v1))
         );
-    let server_handler = ServerService::start("127.0.0.1:8088", handler).unwrap();
+
+    let server_handler = ServerService::start("127.0.0.1:8088", tls, handler).unwrap();
+
     stdin()
         .lock()
         .lines()
@@ -30,6 +34,14 @@ fn main() {
         Ok(_) => println!("Ok"),
         Err(e) => println!("Failed: {:?}", e),
     };
+}
+
+fn load_tls_acceptor() -> TlsAcceptor {
+    let identity_pkcs12 = include_bytes!("example_identity.p12");
+    let identity = Identity::from_pkcs12(identity_pkcs12, "")
+        .unwrap();
+    TlsAcceptor::new(identity)
+        .unwrap()
 }
 
 fn next_update_v1(_: ()) -> impl Responder {
