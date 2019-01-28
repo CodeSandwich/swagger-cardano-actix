@@ -25,7 +25,11 @@ fn main() {
         .filter_map(|res| res.ok())
         .filter(|line| line == "stop")
         .next();
-    server_handler.stop();
+    println!("Stopping...");
+    match server_handler.stop().wait() {
+        Ok(_) => println!("Ok"),
+        Err(e) => println!("Failed: {:?}", e),
+    };
 }
 
 fn next_update_v1(_: ()) -> impl Responder {

@@ -1,13 +1,14 @@
 use crate::{Error, ServerResult};
 use actix_net::server::Server;
-use actix_web::{actix, server};
-use actix_web::actix::Addr;
+use actix_web::server;
+use actix_web::actix::{Addr, MailboxError, System};
 use actix_web::server::{IntoHttpHandler, StopServer};
 use futures::Future;
 use std::net::ToSocketAddrs;
 use std::sync::mpsc::sync_channel;
 use std::thread;
 
+#[derive(Clone)]
 pub struct ServerService {
     addr: Addr<Server>,
 }
@@ -19,7 +20,7 @@ impl ServerService {
               H: IntoHttpHandler + 'static {
         let (sender, receiver) = sync_channel::<ServerResult<ServerService>>(0);
         thread::spawn(move || {
-            let actix_system = actix::System::new("actix system");
+            let actix_system = System::builder().build();
             let server_handler = start_server_curr_actix_system(address, handler);
             let _ = sender.send(server_handler);
             actix_system.run();
@@ -27,11 +28,14 @@ impl ServerService {
         receiver.recv().unwrap()
     }
 
-    pub fn stop(self) {
+    pub fn stop(&self) -> impl Future<Item = (), Error = Error> {
         self.addr.send(StopServer { graceful: true })
-            .wait()
-            .unwrap()
-            .unwrap();
+            .then(|result| match result {
+                Ok(Ok(_)) => Ok(()),
+                Ok(Err(_)) => Err(Error::ServerStopFailed),
+                Err(MailboxError::Closed) => Err(Error::ServerAlreadyStopped),
+                Err(MailboxError::Timeout) => Err(Error::ServerStopTimeout),
+            })
     }
 }
 
