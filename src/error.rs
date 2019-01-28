@@ -7,9 +7,3 @@ pub enum Error {
     ServerStopTimeout,
     ServerStopFailed,
 }
-
-impl Error {
-    pub fn from_bind_error(bind_error: IoError) -> Self {
-        Error::BindFailed(bind_error)
-    }
-}

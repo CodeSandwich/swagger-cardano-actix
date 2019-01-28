@@ -55,7 +55,7 @@ where
     let addr = server::new(handler)
         .system_exit()
         .bind_tls(address, tls)
-        .map_err(Error::from_bind_error)?
+        .map_err(|err| Error::BindFailed(err))?
         .start();
     Ok(ServerService { addr })
 }
